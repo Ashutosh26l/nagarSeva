@@ -1,112 +1,248 @@
-import React, { useState } from 'react';
+import { createElement, useEffect, useState } from 'react';
+import axios from 'axios';
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Camera, CheckCircle2, MapPin, Send } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import Navbar from './Navbar';
+import CivicShell from './CivicShell';
 
-// --- SVG Icons (Self-contained components) ---
-const MenuIcon = ({ className }) => (
-  <svg className={className} stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
-    <line x1="3" y1="12" x2="21" y2="12"></line>
-    <line x1="3" y1="6" x2="21" y2="6"></line>
-    <line x1="3" y1="18" x2="21" y2="18"></line>
-  </svg>
-);
+const steps = [
+  { title: 'Snap & Describe', text: 'Take a photo and tell us what is happening where you live.', icon: Camera, tone: 'green' },
+  { title: 'Submit Your Report', text: 'Add the location and category, then send your report to the community issue feed.', icon: Send, tone: 'white' },
+  { title: 'See It Resolved', text: 'Track updates and see reported issues move forward.', icon: CheckCircle2, tone: 'amber' },
+];
 
-const XIcon = ({ className }) => (
-  <svg className={className} stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" xmlns="http://www.w3.org/2000/svg">
-    <line x1="18" y1="6" x2="6" y2="18"></line>
-    <line x1="6" y1="6" x2="18" y2="18"></line>
-  </svg>
-);
+const statusTone = (status) => {
+  const value = String(status || '').toLowerCase();
+  if (value === 'open') return 'bg-civic-green text-white';
+  if (value === 'in progress') return 'bg-civic-amber text-civic-ink';
+  if (value === 'closed') return 'bg-civic-ink text-white';
+  return 'bg-civic-mint text-civic-ink';
+};
 
-const CameraIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-10 w-10 mb-4 text-green-600">
-    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
-    <circle cx="12" cy="13" r="3"></circle>
-  </svg>
-);
-
-const SendIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-10 w-10 mb-4 text-green-600">
-    <line x1="22" y1="2" x2="11" y2="13"></line>
-    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-  </svg>
-);
-
-const CheckCircleIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-10 w-10 mb-4 text-green-600">
-    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-  </svg>
-);
-
-// --- Main App Component ---
 export default function LandingPage() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [issues, setIssues] = useState([]);
+  const [issueCount, setIssueCount] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  const baseUrl = import.meta.env.VITE_BASE_URL;
 
-  const issues = [
-    { id: 1, category: 'Waste Management', location: 'Ranchi', status: 'Resolved', imageUrl: 'https://placehold.co/600x400/c7e8ca/4d594f?text=Garbage+Cleared' },
-    { id: 2, category: 'Pothole', location: 'Jamshedpur', status: 'In Progress', imageUrl: 'https://placehold.co/600x400/fff3cd/4d594f?text=Road+Repair' },
-    { id: 3, category: 'Street Light', location: 'Dhanbad', status: 'New', imageUrl: 'https://placehold.co/600x400/f8d7da/4d594f?text=Light+Outage' },
-  ];
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Resolved': return 'bg-green-100 text-green-800';
-      case 'In Progress': return 'bg-yellow-100 text-yellow-800';
-      case 'New': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  useEffect(() => {
+    let active = true;
+    axios
+      .get(`${baseUrl}/api/issues`)
+      .then((response) => {
+        if (!active) return;
+        const records = Array.isArray(response.data?.issues)
+          ? response.data.issues
+          : Array.isArray(response.data)
+          ? response.data
+          : [];
+        setIssues(records.slice(0, 3));
+        setIssueCount(records.length);
+      })
+      .catch(() => {
+        if (active) setIssueCount(null);
+      })
+      .finally(() => {
+        if (active) setLoaded(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [baseUrl]);
 
   return (
-    <div className="bg-gray-50 min-h-screen font-sans text-gray-800">
-
-      <main>
-        {/* --- Hero Section --- */}
-        <section
-          className="relative h-[60vh] min-h-[400px] flex items-center justify-center text-center text-white px-6 bg-[#2c3e50]"
+    <CivicShell
+      title="Your neighbourhood, heard."
+      eyebrow="Jharkhand · Citizen services"
+      tagline="CITIZEN DESK · JH"
+      headerAction={
+        <Link
+          to={localStorage.getItem('user') ? '/home' : '/login'}
+          className="civic-focus civic-hard-strong inline-flex min-h-11 items-center gap-2 bg-civic-ink px-4 font-display text-sm font-bold text-white"
         >
-          <div className="absolute inset-0 bg-black/50"></div>
-          <div className="relative z-10 max-w-3xl">
-            <h1 className="text-4xl md:text-6xl font-extrabold mb-4 leading-tight tracking-tight">Report. Track. Resolve.</h1>
-            <p className="text-lg md:text-xl mb-8 font-light text-gray-200">
-              Your voice for a better Jharkhand. Report civic issues in your area and help build a cleaner, safer community together.
+          Log in <ArrowUpRight aria-hidden="true" size={16} />
+        </Link>
+      }
+    >
+      <div className="landing-wrap mx-auto max-w-[1320px] p-8">
+        <section className="landing-hero grid grid-cols-[1.15fr_.85fr] items-stretch gap-7">
+          <div className="civic-hard-strong relative overflow-hidden bg-white p-9">
+            <span className="civic-pill inline-flex items-center gap-2 bg-civic-mint px-3 py-2">
+              <MapPin size={14} aria-hidden="true" />Local voices. Real change.
+            </span>
+            <span className="ml-3 font-mono text-[9px] text-civic-ink/50">01 / WELCOME</span>
+            <h2 className="hero-title mt-6 max-w-[640px] font-display text-[66px] font-black leading-[.98]">
+              Report.
+              <br />
+              <span className="text-civic-green">Track.</span>
+              <br />
+              Resolve.
+            </h2>
+            <p className="mt-6 max-w-[510px] text-[17px] leading-7 text-civic-ink/80">
+              Your voice for a better Jharkhand. Tell us what needs attention in your neighbourhood, follow its
+              progress, and help make everyday places better for everyone.
             </p>
-            <Link
-              to="/home"
-              className="bg-yellow-400 text-gray-900 font-bold py-3 px-8 text-lg rounded-full hover:bg-yellow-500 transition-all duration-300 transform hover:scale-110 shadow-xl"
+            <div className="mt-7 flex flex-wrap items-center gap-4">
+              <Link
+                to="/home"
+                className="civic-focus civic-hard-strong inline-flex min-h-12 items-center gap-3 bg-civic-green px-6 py-4 font-display font-bold text-white transition-transform hover:-translate-y-0.5"
+              >
+                Report an Issue Now <ArrowRight aria-hidden="true" size={19} />
+              </Link>
+              <Link
+                to="/issuelist"
+                className="civic-focus inline-flex min-h-11 items-center gap-2 font-semibold underline underline-offset-4"
+              >
+                Explore community issues <ArrowDownRight aria-hidden="true" size={16} />
+              </Link>
+            </div>
+            <p className="mt-7 font-mono text-[9px] tracking-[.12em] text-civic-ink/50">
+              A SIMPLE WAY TO MAKE YOUR CONCERN COUNT
+            </p>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -bottom-8 -right-5 font-display text-[145px] font-black leading-none text-civic-mint/60"
             >
-              Report an Issue Now
-            </Link>
-          </div>
-        </section>
-
-        {/* --- How It Works Section --- */}
-        <section className="py-16 md:py-24 bg-white">
-          <div className="container mx-auto px-6 text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gray-800">A Simple 3-Step Process</h2>
-            <p className="text-gray-600 max-w-2xl mx-auto mb-12">Making a difference has never been easier. Follow these simple steps to get started.</p>
-            <div className="grid md:grid-cols-3 gap-10">
-              <div className="flex flex-col items-center p-8 bg-gray-50 rounded-xl shadow-md hover:shadow-xl transition-shadow duration-300">
-                <CameraIcon />
-                <h3 className="text-xl font-semibold mb-2">1. Snap & Describe</h3>
-                <p className="text-gray-600">Take a photo of the issue and provide a brief description along with the location.</p>
-              </div>
-              <div className="flex flex-col items-center p-8 bg-gray-50 rounded-xl shadow-md hover:shadow-xl transition-shadow duration-300">
-                <SendIcon />
-                <h3 className="text-xl font-semibold mb-2">2. Submit Your Report</h3>
-                <p className="text-gray-600">Submit your report through our easy-to-use portal. You'll receive a unique tracking ID.</p>
-              </div>
-              <div className="flex flex-col items-center p-8 bg-gray-50 rounded-xl shadow-md hover:shadow-xl transition-shadow duration-300">
-                <CheckCircleIcon />
-                <h3 className="text-xl font-semibold mb-2">3. See It Resolved</h3>
-                <p className="text-gray-600">Track the status of your report in real-time and get notified upon resolution.</p>
-              </div>
+              ⌂
             </div>
           </div>
+
+          <section
+            aria-label="Community snapshot"
+            className="community-snapshot paper-grid civic-hard-strong flex min-h-[390px] flex-col justify-between p-6"
+          >
+            <div className="flex items-center justify-between">
+              <span className="civic-eyebrow">Community snapshot</span>
+              <span className="civic-pill bg-white px-3 py-1.5">Live feed</span>
+            </div>
+            <div>
+              <p className="font-mono text-[10px] tracking-[.12em] text-civic-ink/55">
+                REPORTS SHARED BY RESIDENTS
+              </p>
+              <div className="mt-2 font-display text-[76px] font-black leading-none">
+                {issueCount ?? '—'}
+                {issueCount != null && <span className="text-civic-green">+</span>}
+              </div>
+              {issueCount == null && (
+                <p className="mt-2 font-mono text-[10px] tracking-[.1em] text-civic-ink/50">
+                  LIVE COUNT UNAVAILABLE
+                </p>
+              )}
+              <div className="mt-5 h-[3px] w-full bg-civic-ink" />
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="border-2 border-civic-ink bg-white p-3">
+                  <p className="civic-eyebrow text-civic-ink/55">Showing</p>
+                  <p className="mt-1 font-display text-2xl font-bold">{issues.length}</p>
+                  <p className="text-xs text-civic-ink/65">recent reports</p>
+                </div>
+                <div className="border-2 border-civic-ink bg-civic-amber p-3">
+                  <p className="civic-eyebrow">Status</p>
+                  <p className="mt-1 font-display text-2xl font-bold">{issues.length ? 'Live' : 'Open'}</p>
+                  <p className="text-xs">Community feed</p>
+                </div>
+              </div>
+            </div>
+            <p className="font-mono text-[9px] tracking-[.12em] text-civic-ink/55">
+              EVERY REPORT MOVES US FORWARD
+            </p>
+          </section>
         </section>
-      </main>
-      <Navbar />
-    </div>
+
+        <section aria-labelledby="how-heading" className="mt-8">
+          <div className="mb-4 flex items-end justify-between gap-3">
+            <div>
+              <p className="civic-eyebrow text-civic-ink/55">Three steps · one better community</p>
+              <h3 id="how-heading" className="mt-1 font-display text-[27px] font-bold">
+                From concern to change.
+              </h3>
+            </div>
+            <span className="civic-pill shrink-0 bg-white px-3 py-1.5">How it works</span>
+          </div>
+          <div className="steps grid grid-cols-3 gap-4">
+            {steps.map(({ title, text, icon, tone }, index) => (
+              <article
+                key={title}
+                className={`civic-hard p-5 ${
+                  tone === 'green'
+                    ? 'bg-civic-green text-white'
+                    : tone === 'amber'
+                    ? 'bg-civic-amber text-civic-ink'
+                    : 'bg-white'
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <span className="font-mono text-[10px] opacity-75">STEP 0{index + 1}</span>
+                  {createElement(icon, { 'aria-hidden': true, size: 28 })}
+                </div>
+                <h4 className="mt-5 font-display text-xl font-bold">{title}</h4>
+                <p className="mt-2 text-sm leading-5 opacity-85">{text}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="civic-hard-strong mt-8 overflow-hidden bg-white">
+          <div className="flex items-center justify-between gap-4 border-b-[3px] border-civic-ink px-5 py-4">
+            <div>
+              <p className="civic-eyebrow text-civic-ink/55">From your community</p>
+              <h3 className="mt-1 font-display text-xl font-bold">Recent issues</h3>
+            </div>
+            <Link to="/issuelist" className="civic-focus shrink-0 text-sm font-semibold underline underline-offset-4">
+              View all issues <ArrowRight size={15} className="inline" aria-hidden="true" />
+            </Link>
+          </div>
+          {issues.length ? (
+            <div className="recent-grid grid grid-cols-3 divide-x-2 divide-civic-ink">
+              {issues.map((issue) => (
+                <article key={issue.id} className="min-w-0 p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="civic-pill truncate bg-civic-mint px-2 py-1">
+                      {issue.category || 'Community report'}
+                    </span>
+                    <time className="shrink-0 font-mono text-[9px] text-civic-ink/55">
+                      {issue.created_at
+                        ? new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(
+                            new Date(issue.created_at),
+                          )
+                        : ''}
+                    </time>
+                  </div>
+                  <h4 className="mt-4 line-clamp-2 font-display text-lg font-bold">
+                    {issue.issue_title || 'Untitled issue'}
+                  </h4>
+                  <p className="mt-1 flex items-center gap-1 text-sm text-civic-ink/65">
+                    <MapPin size={14} aria-hidden="true" />
+                    {issue.location || 'Location not provided'}
+                  </p>
+                  <div className="mt-5 flex items-center justify-between gap-2">
+                    <span className={`civic-pill px-2 py-1 ${statusTone(issue.status)}`}>{issue.status || 'Unknown'}</span>
+                    <span className="font-mono text-[10px] text-civic-ink/60">
+                      ↑ {Number(issue.upvotes?.count) || 0}
+                    </span>
+                  </div>
+                  <Link
+                    to="/issue-detail"
+                    state={{ issueId: issue.id }}
+                    className="civic-focus mt-3 inline-flex min-h-10 items-center text-sm font-semibold underline"
+                  >
+                    View details <ArrowUpRight size={14} className="ml-1" aria-hidden="true" />
+                  </Link>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="p-5 text-sm text-civic-ink/65">
+              {loaded && issueCount === 0
+                ? 'No community reports have been submitted yet.'
+                : 'Community reports will appear here when available.'}
+            </div>
+          )}
+        </section>
+
+        <footer className="flex flex-wrap items-center justify-between gap-2 py-5 font-mono text-[9px] text-civic-ink/55">
+          <span>NAGARSEVA · CITIZEN ISSUE REPORTING</span>
+          <span>REPORT WHAT MATTERS IN YOUR COMMUNITY</span>
+        </footer>
+      </div>
+    </CivicShell>
   );
 }
